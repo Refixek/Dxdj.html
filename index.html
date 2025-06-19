@@ -1,1 +1,302 @@
-file:///storage/emulated/0/Android/data/com.teejay.trebedit/files/TrebEdit%20user%20files/djd.html
+<!DOCTYPE html><html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Chomik i Kible - Gra z Poziomami i Sklepem</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #e0f7fa;
+      font-family: sans-serif;
+    }#game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.object {
+  position: absolute;
+  font-size: 40px;
+}
+
+#score, #task, #level {
+  position: absolute;
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: bold;
+  z-index: 100;
+}
+
+#score { top: 10px; left: 10px; }
+#level { top: 10px; right: 10px; }
+#task { top: 60px; left: 10px; background: #fff9c4; }
+
+#controls {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 100;
+}
+
+.row { display: flex; gap: 10px; }
+.btn {
+  width: 60px;
+  height: 60px;
+  background: #90caf9;
+  border: none;
+  border-radius: 10px;
+  font-size: 24px;
+  font-weight: bold;
+  touch-action: manipulation;
+}
+
+.success { color: green; }
+.fail { color: red; }
+
+#music-toggle, #shop-toggle {
+  position: absolute;
+  bottom: 10px;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 16px;
+  z-index: 100;
+}
+
+#music-toggle { right: 10px; }
+#shop-toggle { left: 10px; }
+
+#shop {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border: 2px solid #000;
+  border-radius: 15px;
+  display: none;
+  z-index: 200;
+}
+
+.shop-item {
+  margin: 10px 0;
+}
+
+.shop-item button {
+  margin-left: 10px;
+}
+
+  </style>
+</head>
+<body><div id="game">
+  <div id="score">Kible zebrane: 0</div>
+  <div id="level">Poziom: 1</div>
+  <div id="task">Zadanie: czekaj...</div>
+  <div id="hamster" class="object">🐹</div><button id="music-toggle">🔊 Muzyka</button> <button id="shop-toggle">🛒 Sklep</button>
+
+  <div id="controls">
+    <div class="row">
+      <button class="btn" ontouchstart="move('up')" ontouchend="stop()">⬆️</button>
+    </div>
+    <div class="row">
+      <button class="btn" ontouchstart="move('left')" ontouchend="stop()">⬅️</button>
+      <button class="btn" ontouchstart="move('down')" ontouchend="stop()">⬇️</button>
+      <button class="btn" ontouchstart="move('right')" ontouchend="stop()">➡️</button>
+    </div>
+  </div>
+</div><div id="shop">
+  <h3>Sklep</h3>
+  <div class="shop-item">Skórki:</div>
+  <div class="shop-item">🐭 <button onclick="buySkin('🐭', 10)">Kup (10 kibli)</button></div>
+  <div class="shop-item">🦊 <button onclick="buySkin('🦊', 15)">Kup (15 kibli)</button></div>
+  <div class="shop-item">🐼 <button onclick="buySkin('🐼', 20)">Kup (20 kibli)</button></div>
+  <div class="shop-item">Ulepszenia:</div>
+  <div class="shop-item">⚡ Przyspieszenie <button onclick="buySpeedBoost(30)">Kup (30 kibli)</button></div>
+  <button onclick="document.getElementById('shop').style.display='none'">Zamknij</button>
+</div><audio id="bg-music" loop>
+  <source src="https://cdn.pixabay.com/download/audio/2022/10/03/audio_b98e9e0f98.mp3?filename=lofi-study-112191.mp3" type="audio/mp3">
+</audio><script>
+  const hamster = document.getElementById("hamster");
+  const scoreEl = document.getElementById("score");
+  const taskEl = document.getElementById("task");
+  const levelEl = document.getElementById("level");
+  const music = document.getElementById("bg-music");
+
+  let score = 0;
+  let level = 1;
+  let hamsterX = window.innerWidth / 2;
+  let hamsterY = window.innerHeight / 2;
+  let speed = 5;
+  let poopIntervalTime = 2000;
+  let moveInterval = null;
+  let direction = null;
+  let toiletsCollected = 0;
+  let currentTask = null;
+  let taskTimeout = null;
+
+  const baseTasks = [
+    { goal: 3, time: 10 },
+    { goal: 5, time: 12 },
+    { goal: 8, time: 14 }
+  ];
+
+  const skins = {};
+
+  document.getElementById("shop-toggle").onclick = () => {
+    document.getElementById("shop").style.display = "block";
+  };
+
+  document.getElementById("music-toggle").onclick = () => {
+    if (music.paused) {
+      music.play();
+      event.target.textContent = "🔊 Muzyka";
+    } else {
+      music.pause();
+      event.target.textContent = "🔇 Wyłączona";
+    }
+  };
+
+  function updateHamster() {
+    hamster.style.left = hamsterX + "px";
+    hamster.style.top = hamsterY + "px";
+  }
+
+  function move(dir) {
+    direction = dir;
+    if (moveInterval) clearInterval(moveInterval);
+    moveInterval = setInterval(() => {
+      if (direction === "up") hamsterY -= speed;
+      if (direction === "down") hamsterY += speed;
+      if (direction === "left") hamsterX -= speed;
+      if (direction === "right") hamsterX += speed;
+      keepInBounds();
+      updateHamster();
+      checkCollision();
+    }, 30);
+  }
+
+  function stop() { clearInterval(moveInterval); }
+
+  function keepInBounds() {
+    hamsterX = Math.max(0, Math.min(window.innerWidth - 60, hamsterX));
+    hamsterY = Math.max(0, Math.min(window.innerHeight - 60, hamsterY));
+  }
+
+  function spawnToilet() {
+    const toilet = document.createElement("div");
+    toilet.classList.add("object", "toilet");
+    toilet.textContent = "🚽";
+    toilet.style.left = Math.random() * (window.innerWidth - 40) + "px";
+    toilet.style.top = Math.random() * (window.innerHeight - 100) + "px";
+    document.getElementById("game").appendChild(toilet);
+    setTimeout(spawnToilet, 2000);
+  }
+
+  function spawnPoop() {
+    const poop = document.createElement("div");
+    poop.classList.add("object");
+    poop.textContent = "💩";
+    poop.style.left = hamsterX + 10 + "px";
+    poop.style.top = hamsterY + 50 + "px";
+    document.getElementById("game").appendChild(poop);
+    setTimeout(() => poop.remove(), 6000);
+  }
+
+  function checkCollision() {
+    document.querySelectorAll(".toilet").forEach(toilet => {
+      const rect1 = hamster.getBoundingClientRect();
+      const rect2 = toilet.getBoundingClientRect();
+      if (
+        rect1.left < rect2.right &&
+        rect1.right > rect2.left &&
+        rect1.top < rect2.bottom &&
+        rect1.bottom > rect2.top
+      ) {
+        toilet.remove();
+        score++;
+        toiletsCollected++;
+        scoreEl.textContent = "Kible zebrane: " + score;
+        checkTaskCompletion();
+      }
+    });
+  }
+
+  function generateTask() {
+    const task = baseTasks[Math.floor(Math.random() * baseTasks.length)];
+    return {
+      goal: task.goal + level,
+      time: Math.max(5, task.time - Math.floor(level / 2))
+    };
+  }
+
+  function startTask() {
+    currentTask = generateTask();
+    toiletsCollected = 0;
+    taskEl.className = "";
+    taskEl.textContent = `🎯 Zadanie: Zbierz ${currentTask.goal} kibli w ${currentTask.time} sek...`;
+
+    clearTimeout(taskTimeout);
+    taskTimeout = setTimeout(() => {
+      if (toiletsCollected >= currentTask.goal) {
+        completeTask();
+      } else {
+        taskEl.textContent = "❌ Zadanie nieudane!";
+        taskEl.className = "fail";
+        setTimeout(startTask, 3000);
+      }
+    }, currentTask.time * 1000);
+  }
+
+  function completeTask() {
+    level++;
+    levelEl.textContent = "Poziom: " + level;
+    taskEl.textContent = `✔️ Ukończono! +1 poziom`;
+    taskEl.className = "success";
+    setTimeout(startTask, 3000);
+  }
+
+  function checkTaskCompletion() {
+    if (toiletsCollected >= currentTask.goal) {
+      clearTimeout(taskTimeout);
+      completeTask();
+    }
+  }
+
+  function buySkin(emoji, cost) {
+    if (score >= cost) {
+      score -= cost;
+      hamster.textContent = emoji;
+      scoreEl.textContent = "Kible zebrane: " + score;
+    } else {
+      alert("Za mało kibli!");
+    }
+  }
+
+  function buySpeedBoost(cost) {
+    if (score >= cost) {
+      score -= cost;
+      speed += 2;
+      poopIntervalTime = Math.max(500, poopIntervalTime - 500);
+      clearInterval(poopTimer);
+      poopTimer = setInterval(spawnPoop, poopIntervalTime);
+      scoreEl.textContent = "Kible zebrane: " + score;
+    } else {
+      alert("Za mało kibli!");
+    }
+  }
+
+  updateHamster();
+  spawnToilet();
+  let poopTimer = setInterval(spawnPoop, poopIntervalTime);
+  setTimeout(startTask, 2000);
+</script></body>
+</html>
